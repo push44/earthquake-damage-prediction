@@ -63,7 +63,7 @@ def run():
         X_cv_bin = X_cv[columns]
 
         # Model
-        clf1 = model_dispatcher.models["decision_tree"]
+        clf1 = model_dispatcher.models["decision_tree_reg"]
         clf1.fit(X_train_num, y_train)
 
         X_train = sparse.csr_matrix(np.hstack((X_train_bin, clf1.predict_proba(X_train_num))))

@@ -28,7 +28,7 @@ def run():
     X_bin = X[columns]
 
     # Predict
-    with open("../models/numeric_decision_tree.pickle", "rb") as f:
+    with open("../models/numeric_random_forest.pickle", "rb") as f:
         clf1 = pickle.load(f)
 
     with open("../models/binary_logistic_reg.pickle", "rb") as f:

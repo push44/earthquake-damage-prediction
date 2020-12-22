@@ -27,7 +27,7 @@ def run():
     X_bin = X[columns]
 
     # Train model
-    clf1 = model_dispatcher.models["decision_tree"]
+    clf1 = model_dispatcher.models["random_forest"]
     clf1.fit(X_num, y)
 
     X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict_proba(X_num))))
@@ -35,7 +35,7 @@ def run():
     clf2 = model_dispatcher.models["logistic_reg"]
     clf2.fit(X_comb, y)
 
-    with open("../models/numeric_decision_tree.pickle", "wb") as f:
+    with open("../models/numeric_random_forest.pickle", "wb") as f:
         pickle.dump(clf1, f)
 
     with open("../models/binary_logistic_reg.pickle", "wb") as f:
