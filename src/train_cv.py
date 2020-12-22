@@ -1,18 +1,24 @@
+# Train a decision tree classifier only on the numerical features (avoiding binary numeric features)
+# Use probabilistic output of this classifier as a input feature for the logistic regression model where
+# the features are binary numeric features and ohe hot encoded categorical features
+
 import model_dispatcher
 import pandas as pd
 from sklearn import metrics
 from tqdm import tqdm
 import numpy as np
+from sklearn import preprocessing
+from scipy import sparse
 
 
 def label_encoding(df_enc):
     """
-    :param df_enc: DataFrame with kfold and damage_grade
+    :param df_enc: DataFrame with kfold, building_id and damage_grade
     :type df_enc: pandas dataframe
     :return: Categorical label encoded dataframe
     :rtype: pandas dataframe
     """
-    for col in df_enc.columns:
+    for col in df_enc.select_dtypes(include="object").columns:
         if col in ["kfold", "damage_grade", "building_id"]:
             continue
 
@@ -30,17 +36,9 @@ def run():
         if len(df[col].unique()) == 2 and col not in ["kfold", "damage_grade", "building_id"]:
             binary_columns.append(col)
 
-    # Only categorical columns
-    cat_columns = list(df.select_dtypes(include="object").columns)
-
-    # Columns have binary representation
-    columns = ["kfold", "damage_grade", "building_id"]+cat_columns+binary_columns
-
-    # Dataframe of all listed columns
-    df = df[columns]
-
     # One hot encoded features
-    df = pd.get_dummies(df)
+    df = pd.get_dummies(df, prefix_sep="_ohe_")
+    columns = [col for col in df.columns if "_ohe_" in col] + binary_columns
 
     # Lists to records evaluation score
     train_micro_f1_score = []
@@ -57,13 +55,26 @@ def run():
         X_train, y_train = df_train.drop(["damage_grade", "kfold", "building_id"], axis=1), df_train["damage_grade"]
         X_cv, y_cv = df_cv.drop(["damage_grade", "kfold", "building_id"], axis=1), df_cv["damage_grade"]
 
+        # Split numerical and binary features
+        X_train_num = X_train[[col for col in X_train.columns if col not in columns]]
+        X_cv_num = X_cv[[col for col in X_cv.columns if col not in columns]]
+
+        X_train_bin = X_train[columns]
+        X_cv_bin = X_cv[columns]
+
         # Model
-        clf = model_dispatcher.models["logistic_reg"]
-        clf.fit(X_train, y_train)
+        clf1 = model_dispatcher.models["decision_tree"]
+        clf1.fit(X_train_num, y_train)
+
+        X_train = sparse.csr_matrix(np.hstack((X_train_bin, clf1.predict_proba(X_train_num))))
+        X_cv = sparse.csr_matrix(np.hstack((X_cv_bin, clf1.predict_proba(X_cv_num))))
+
+        clf2 = model_dispatcher.models["logistic_reg"]
+        clf2.fit(X_train, y_train)
 
         # Recoding evaluation score
-        train_micro_f1_score.append(metrics.f1_score(clf.predict(X_train), y_train, average="micro"))
-        cv_micro_f1_score.append(metrics.f1_score(clf.predict(X_cv), y_cv, average="micro"))
+        train_micro_f1_score.append(metrics.f1_score(clf2.predict(X_train), y_train, average="micro"))
+        cv_micro_f1_score.append(metrics.f1_score(clf2.predict(X_cv), y_cv, average="micro"))
 
     print(np.mean(train_micro_f1_score), np.mean(cv_micro_f1_score))
 

@@ -1,6 +1,7 @@
 import pandas as pd
-import model_dispatcher
 import pickle
+from scipy import sparse
+import numpy as np
 
 
 def run():
@@ -15,26 +16,27 @@ def run():
         if len(df[col].unique()) == 2 and col not in ["building_id"]:
             binary_columns.append(col)
 
-    # Only categorical columns
-    cat_columns = list(df.select_dtypes(include="object").columns)
-
-    # Columns have binary representation
-    columns = ["building_id"]+cat_columns+binary_columns
-
-    # Dataframe of all listed columns
-    df = df[columns]
-
     # One hot encoded features
-    df = pd.get_dummies(df)
+    df = pd.get_dummies(df, prefix_sep="_ohe_")
+    columns = [col for col in df.columns if "_ohe_" in col] + binary_columns
 
     # Predictors
     X = df.drop(["building_id"], axis=1)
 
-    # Train model
-    with open("../models/binary_logistic_reg.pickle", "rb") as f:
-        clf = pickle.load(f)
+    # Separate numerical and binary features
+    X_num = X[[col for col in X.columns if col not in columns]]
+    X_bin = X[columns]
 
-    sub_df["damage_grade"] = clf.predict(X)
+    # Predict
+    with open("../models/numeric_decision_tree.pickle", "rb") as f:
+        clf1 = pickle.load(f)
+
+    with open("../models/binary_logistic_reg.pickle", "rb") as f:
+        clf2 = pickle.load(f)
+
+    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict_proba(X_num))))
+
+    sub_df["damage_grade"] = clf2.predict(X_comb)
     sub_df.to_csv("../input/submission_format.csv", index=False)
 
 
