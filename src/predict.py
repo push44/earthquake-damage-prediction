@@ -28,13 +28,13 @@ def run():
     X_bin = X[columns]
 
     # Predict
-    with open("../models/numeric_random_forest.pickle", "rb") as f:
+    with open("../models/decision_tree_reg.pickle", "rb") as f:
         clf1 = pickle.load(f)
 
     with open("../models/binary_logistic_reg.pickle", "rb") as f:
         clf2 = pickle.load(f)
 
-    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict_proba(X_num))))
+    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict(X_num).reshape(-1, 1))))
 
     sub_df["damage_grade"] = clf2.predict(X_comb)
     sub_df.to_csv("../input/submission_format.csv", index=False)
