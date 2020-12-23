@@ -8,7 +8,7 @@ from sklearn import metrics
 from tqdm import tqdm
 import numpy as np
 from scipy import sparse
-from sklearn import preprocessing
+import target_encoding
 
 pd.options.mode.chained_assignment = None
 
@@ -46,6 +46,7 @@ def run():
     # One hot encoded features
     df = pd.get_dummies(df, prefix_sep="_ohe_")
 
+    # Columns to avoid being considered as numeric
     columns = [col for col in df.columns if "_ohe_" in col] + binary_columns
 
     # Lists to records evaluation score
@@ -71,9 +72,17 @@ def run():
         X_valid_bin = X_valid[columns]
 
         # Feature engineering (Numeric)
-        #power_trans = preprocessing.PowerTransformer()
-        #X_train_num = power_trans.fit_transform(X_train_num+1)
-        #X_valid_num = power_trans.transform(X_valid_num + 1)
+        train_encoding = []
+        valid_encoding = []
+        for col in X_train_num.columns:
+            train_arr, valid_arr = target_encoding.target_encode(trn_series=X_train_num[col],
+                                                                 tst_series=X_valid_num[col],
+                                                                 target=y_train)
+            train_encoding.append(train_arr)
+            valid_encoding.append(valid_arr)
+
+        X_train_num = np.array(train_encoding).T
+        X_valid_num = np.array(valid_encoding).T
 
         # Model
         clf1 = model_dispatcher.models["decision_tree_reg"]
