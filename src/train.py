@@ -8,15 +8,28 @@ import numpy as np
 def run():
     # Read train data with folds
     df = pd.read_csv("../input/train_folds.csv")
+    test_values = pd.read_csv("../input/test_values.csv")
+
+    n_rows = df.shape[0] - 1
+
+    df_temp = pd.concat((df, test_values), axis=0, ignore_index=True)
 
     # List binary columns
     binary_columns = []
-    for col in df.select_dtypes(exclude="object").columns:
-        if len(df[col].unique()) == 2 and col not in ["kfold", "damage_grade", "building_id"]:
+    for col in df_temp.select_dtypes(exclude="object").columns:
+        if len(df_temp[col].unique()) == 2 and col not in ["kfold", "damage_grade", "building_id"]:
             binary_columns.append(col)
 
+    # Convert geo_level_1_id as object
+    df_temp["geo_level_1_id"] = df_temp["geo_level_1_id"].astype("object")
+    df_temp["count_floors_pre_eq"] = df_temp["count_floors_pre_eq"].astype("object")
+    df_temp["count_families"] = df_temp["count_families"].astype("object")
+
     # One hot encoded features
-    df = pd.get_dummies(df, prefix_sep="_ohe_")
+    df_temp = pd.get_dummies(df_temp, prefix_sep="_ohe_")
+
+    df = df_temp.loc[:n_rows, :]
+
     columns = [col for col in df.columns if "_ohe_" in col] + binary_columns
 
     # X y split
