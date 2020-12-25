@@ -8,7 +8,6 @@ from sklearn import metrics
 from tqdm import tqdm
 import numpy as np
 from scipy import sparse
-import target_encoding
 
 pd.options.mode.chained_assignment = None
 
@@ -32,22 +31,24 @@ def run():
     # Read train data with folds
     df = pd.read_csv("../input/train_folds.csv")
 
-    # List binary columns
-    binary_columns = []
-    for col in df.select_dtypes(exclude="object").columns:
-        if len(df[col].unique()) == 2 and col not in ["kfold", "damage_grade", "building_id"]:
-            binary_columns.append(col)
+    # Train encoded dataframe
+    df_enc = pd.read_csv("../input/target_mean_encoded_df.csv")
 
-    # Convert geo_level_1_id as object
-    df["geo_level_1_id"] = df["geo_level_1_id"].astype("object")
-    df["count_floors_pre_eq"] = df["count_floors_pre_eq"].astype("object")
-    df["count_families"] = df["count_families"].astype("object")
+    # All features to considered as categorical
+    categorical_features = [col for col in df.columns if col not in ["kfold", "building_id",
+                                                                     "damage_grade", "geo_level_2_id",
+                                                                     "geo_level_3_id", "age",
+                                                                     "area_percentage", "height_percentage"]]
+
+    # Convert categorical feature dtype as object
+    for col in categorical_features:
+        df[col] = df[col].astype("object")
 
     # One hot encoded features
-    df = pd.get_dummies(df, prefix_sep="_ohe_")
+    df_ohe = pd.get_dummies(df, prefix_sep="_ohe_")
 
-    # Columns to avoid being considered as numeric
-    columns = [col for col in df.columns if "_ohe_" in col] + binary_columns
+    # List of feature names after OHE
+    ohe_columns = [col for col in df_ohe.columns if "_ohe_" in col]
 
     # Lists to records evaluation score
     train_micro_f1_score = []
@@ -56,33 +57,21 @@ def run():
     # k fold cross-validation
     for fold in tqdm(range(10)):
 
-        # take out 9 train and 1 cv out of the dataframe
-        df_train = df[df["kfold"] != fold]
-        df_valid = df[df["kfold"] == fold]
+        # Train and validation y series
+        y_train = df_ohe[df_ohe["kfold"] != fold]["damage_grade"]
+        y_valid = df_ohe[df_ohe["kfold"] == fold]["damage_grade"]
 
-        # X y split
-        X_train, y_train = df_train.drop(["damage_grade", "kfold", "building_id"], axis=1), df_train["damage_grade"]
-        X_valid, y_valid = df_valid.drop(["damage_grade", "kfold", "building_id"], axis=1), df_valid["damage_grade"]
+        # Train and validation indicator features, after OHE
+        X_train_bin = df_ohe[df_ohe["kfold"] != fold][ohe_columns]
+        X_valid_bin = df_ohe[df_ohe["kfold"] == fold][ohe_columns]
 
-        # Split numerical and binary features
-        X_train_num = X_train[[col for col in X_train.columns if col not in columns]]
-        X_valid_num = X_valid[[col for col in X_valid.columns if col not in columns]]
+        # Train and validation numeric features with mean target encoding
+        # List of features after mean target encoding
+        numeric_encoded_features = [col + "_enc" for col in df if col not in
+                                    categorical_features + ["kfold", "building_id", "damage_grade"]]
 
-        X_train_bin = X_train[columns]
-        X_valid_bin = X_valid[columns]
-
-        # Feature engineering (Numeric)
-        train_encoding = []
-        valid_encoding = []
-        for col in X_train_num.columns:
-            train_arr, valid_arr = target_encoding.target_encode(trn_series=X_train_num[col],
-                                                                 tst_series=X_valid_num[col],
-                                                                 target=y_train)
-            train_encoding.append(train_arr)
-            valid_encoding.append(valid_arr)
-
-        X_train_num = np.array(train_encoding).T
-        X_valid_num = np.array(valid_encoding).T
+        X_train_num = df_enc[df_enc["kfold"] != fold][numeric_encoded_features]
+        X_valid_num = df_enc[df_enc["kfold"] == fold][numeric_encoded_features]
 
         # Model
         clf1 = model_dispatcher.models["decision_tree_reg"]

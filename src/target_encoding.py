@@ -10,9 +10,9 @@ def add_noise(series, noise_level):
 def target_encode(trn_series=None,
                   tst_series=None,
                   target=None,
-                  min_samples_leaf=20,
+                  min_samples_leaf=1,
                   smoothing=1,
-                  noise_level=0.08):
+                  noise_level=0):
     """
     Smoothing is computed like in the following paper by Daniele Micci-Barreca
     https://kaggle2.blob.core.windows.net/forum-message-attachments/225952/7441/high%20cardinality%20categoricals.pdf

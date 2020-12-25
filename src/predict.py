@@ -5,6 +5,8 @@ from scipy import sparse
 import numpy as np
 import target_encoding
 
+pd.options.mode.chained_assignment = None
+
 
 def train(X_num, X_bin, y):
     # Train model
@@ -39,9 +41,13 @@ def predict(X_num, X_bin):
 def run():
     # Read train data with folds
     train_values = pd.read_csv("../input/train_folds.csv")
+
+    # Train encoded dataframe
+    df_enc = pd.read_csv("../input/target_mean_encoded_df.csv")
+
+    # Read test data and get it merged with submission file
     test_values = pd.read_csv("../input/test_values.csv")
     sub_df = pd.read_csv("../input/submission_format.csv").drop(["damage_grade"], axis=1)
-
     test_values = pd.merge(sub_df, test_values, on="building_id", how="right")
 
     # Note down number of train rows
@@ -50,50 +56,45 @@ def run():
     # Concat train and test dataset for OHE
     df_temp = pd.concat((train_values, test_values), axis=0, ignore_index=True)
 
-    # List binary columns
-    binary_columns = []
-    for col in df_temp.select_dtypes(exclude="object").columns:
-        if len(df_temp[col].unique()) == 2 and col not in ["kfold", "damage_grade", "building_id"]:
-            binary_columns.append(col)
+    # List of features to be considered as categorical
+    categorical_features = [col for col in df_temp.columns if col not in ["kfold", "building_id", "damage_grade",
+                                                                          "geo_level_2_id", "geo_level_3_id",
+                                                                          "age", "area_percentage",
+                                                                          "height_percentage"]]
 
-    # Convert geo_level_1_id as object
-    df_temp["geo_level_1_id"] = df_temp["geo_level_1_id"].astype("object")
-    df_temp["count_floors_pre_eq"] = df_temp["count_floors_pre_eq"].astype("object")
-    df_temp["count_families"] = df_temp["count_families"].astype("object")
+    # Convert categorical feature dtype as object
+    for col in categorical_features:
+        df_temp[col] = df_temp[col].astype("object")
 
     # One hot encoded features
-    df_temp = pd.get_dummies(df_temp, prefix_sep="_ohe_")
+    df_ohe = pd.get_dummies(df_temp, prefix_sep="_ohe_")
+
+    # List of feature names after OHE
+    ohe_columns = [col for col in df_ohe.columns if "_ohe_" in col]
 
     # Use only train dataset
-    df_train = df_temp.loc[:n_rows, :]
-    df_test = df_temp.loc[n_rows+1:, :]
+    df_train_ohe = df_ohe.loc[:n_rows, :]
+    df_test_ohe = df_ohe.loc[n_rows+1:, :]
 
-    # Columns to avoid being considered as numeric
-    columns = [col for col in df_train.columns if "_ohe_" in col] + binary_columns
+    # y series
+    y_train = df_train_ohe["damage_grade"]
 
-    # X y split
-    X_train, y_train = df_train.drop(["kfold", "damage_grade", "building_id"], axis=1), df_train["damage_grade"]
-    X_test, y_test = df_test.drop(["kfold", "damage_grade", "building_id"], axis=1), df_test["damage_grade"]
+    # Train and test indicator features after OHE
+    X_train_bin = df_train_ohe[ohe_columns]
+    X_test_bin = df_test_ohe[ohe_columns]
 
-    # Separate numerical and binary features
-    X_train_num = X_train[[col for col in X_train.columns if col not in columns]]
-    X_train_bin = X_train[columns]
+    # Train and test numerical features with mean target encoding
+    # List of features after mean target encoding
+    numeric_encoded_features = [col + "_enc" for col in df_temp if col not in
+                                categorical_features + ["kfold", "building_id", "damage_grade"]]
 
-    X_test_num = X_test[[col for col in X_train.columns if col not in columns]]
-    X_test_bin = X_test[columns]
+    for col in list(map(lambda val: val.split("_enc")[0], numeric_encoded_features)):
+        _, df_test_ohe[col + "_enc"] = target_encoding.target_encode(trn_series=df_train_ohe[col],
+                                                                     tst_series=df_test_ohe[col], target=y_train,
+                                                                     min_samples_leaf=20, noise_level=0.08)
 
-    # Feature engineering
-    train_encoding = []
-    test_encoding = []
-    for col in X_train_num.columns:
-        train_arr, test_arr = target_encoding.target_encode(trn_series=X_train_num[col],
-                                                            tst_series=X_test_num[col],
-                                                            target=y_train)
-        train_encoding.append(train_arr)
-        test_encoding.append(test_arr)
-
-    X_train_num = np.array(train_encoding).T
-    X_test_num = np.array(test_encoding).T
+    X_train_num = df_enc[numeric_encoded_features]
+    X_test_num = df_test_ohe[numeric_encoded_features]
 
     # Train model
     train(X_train_num, X_train_bin, y_train)
