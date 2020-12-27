@@ -10,15 +10,15 @@ pd.options.mode.chained_assignment = None
 
 def train(X_num, X_bin, y):
     # Train model
-    clf1 = model_dispatcher.models["decision_tree_reg"]
+    clf1 = model_dispatcher.models["decision_tree_clf"]
     clf1.fit(X_num, y)
 
-    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict(X_num).reshape(-1, 1))))
+    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict_proba(X_num))))
 
     clf2 = model_dispatcher.models["logistic_reg"]
     clf2.fit(X_comb, y)
 
-    with open("../models/decision_tree_reg.pickle", "wb") as f:
+    with open("../models/decision_tree_clf.pickle", "wb") as f:
         pickle.dump(clf1, f)
 
     with open("../models/binary_logistic_reg.pickle", "wb") as f:
@@ -27,13 +27,13 @@ def train(X_num, X_bin, y):
 
 def predict(X_num, X_bin):
     # Predict
-    with open("../models/decision_tree_reg.pickle", "rb") as f:
+    with open("../models/decision_tree_clf.pickle", "rb") as f:
         clf1 = pickle.load(f)
 
     with open("../models/binary_logistic_reg.pickle", "rb") as f:
         clf2 = pickle.load(f)
 
-    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict(X_num).reshape(-1, 1))))
+    X_comb = sparse.csr_matrix(np.hstack((X_bin, clf1.predict_proba(X_num))))
 
     return list(map(lambda val: int(val), clf2.predict(X_comb)))
 
@@ -49,6 +49,10 @@ def run():
     test_values = pd.read_csv("../input/test_values.csv")
     sub_df = pd.read_csv("../input/submission_format.csv").drop(["damage_grade"], axis=1)
     test_values = pd.merge(sub_df, test_values, on="building_id", how="right")
+
+    # Target encoded feature interaction
+    train_feat_inter = pd.read_csv("../input/train_target_encoded_feature_interaction.csv")
+    test_feat_inter = pd.read_csv("../input/test_target_encoded_feature_interaction.csv")
 
     # Note down number of train rows
     n_rows = train_values.shape[0] - 1
@@ -83,18 +87,20 @@ def run():
     X_train_bin = df_train_ohe[ohe_columns]
     X_test_bin = df_test_ohe[ohe_columns]
 
-    # Train and test numerical features with mean target encoding
-    # List of features after mean target encoding
-    numeric_encoded_features = [col + "_enc" for col in df_temp if col not in
-                                categorical_features + ["kfold", "building_id", "damage_grade"]]
+    # Train and validation target encoded feature interaction
+    selected_feature_interaction = ['geo_level_2_id_land_surface_condition',
+                                    'geo_level_2_id_count_floors_pre_eq',
+                                    'geo_level_3_id_has_superstructure_cement_mortar_brick',
+                                    'geo_level_3_id_position',
+                                    'geo_level_2_id_geo_level_1_id',
+                                    'geo_level_2_id_has_superstructure_stone_flag',
+                                    'geo_level_2_id_position',
+                                    'geo_level_3_id_land_surface_condition',
+                                    'geo_level_3_id_has_superstructure_timber',
+                                    'geo_level_3_id_has_secondary_use_industry']
 
-    for col in list(map(lambda val: val.split("_enc")[0], numeric_encoded_features)):
-        _, df_test_ohe[col + "_enc"] = target_encoding.target_encode(trn_series=df_train_ohe[col],
-                                                                     tst_series=df_test_ohe[col], target=y_train,
-                                                                     min_samples_leaf=20, noise_level=0.08)
-
-    X_train_num = df_enc[numeric_encoded_features]
-    X_test_num = df_test_ohe[numeric_encoded_features]
+    X_train_num = train_feat_inter.drop(["building_id", "kfold", "damage_grade"], axis=1)[selected_feature_interaction]
+    X_test_num = test_feat_inter.drop(["building_id"], axis=1)[selected_feature_interaction]
 
     # Train model
     train(X_train_num, X_train_bin, y_train)

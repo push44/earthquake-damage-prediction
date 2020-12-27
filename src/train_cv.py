@@ -1,4 +1,4 @@
-# Train a decision tree classifier only on the numerical features (avoiding binary numeric features)
+# Train a decision tree classifier only on the TARGET ENCODED FEATURE INTERACTIONS
 # Use probabilistic output of this classifier as a input feature for the logistic regression model where
 # the features are binary numeric features and ohe hot encoded categorical features
 
@@ -12,27 +12,12 @@ from scipy import sparse
 pd.options.mode.chained_assignment = None
 
 
-def label_encoding(df_enc):
-    """
-    :param df_enc: DataFrame with kfold, building_id and damage_grade
-    :type df_enc: pandas dataframe
-    :return: Categorical label encoded dataframe
-    :rtype: pandas dataframe
-    """
-    for col in df_enc.select_dtypes(include="object").columns:
-        if col in ["kfold", "damage_grade", "building_id"]:
-            continue
-
-        df_enc[col], _ = pd.factorize(df_enc[col], sort=True)
-    return df_enc
-
-
 def run():
     # Read train data with folds
     df = pd.read_csv("../input/train_folds.csv")
 
-    # Train encoded dataframe
-    df_enc = pd.read_csv("../input/target_mean_encoded_df.csv")
+    # Target encoded feature interaction dataframe
+    df_feature_inter = pd.read_csv("../input/train_target_encoded_feature_interaction.csv")
 
     # All features to considered as categorical
     categorical_features = [col for col in df.columns if col not in ["kfold", "building_id",
@@ -50,7 +35,7 @@ def run():
     # List of feature names after OHE
     ohe_columns = [col for col in df_ohe.columns if "_ohe_" in col]
 
-    # Lists to records evaluation score
+    # Lists to record evaluation scores
     train_micro_f1_score = []
     valid_micro_f1_score = []
 
@@ -58,34 +43,46 @@ def run():
     for fold in tqdm(range(10)):
 
         # Train and validation y series
-        y_train = df_ohe[df_ohe["kfold"] != fold]["damage_grade"]
-        y_valid = df_ohe[df_ohe["kfold"] == fold]["damage_grade"]
+        y_train = df_ohe[df_ohe["kfold"] != fold]["damage_grade"].reset_index(drop=True)
+        y_valid = df_ohe[df_ohe["kfold"] == fold]["damage_grade"].reset_index(drop=True)
 
         # Train and validation indicator features, after OHE
-        X_train_bin = df_ohe[df_ohe["kfold"] != fold][ohe_columns]
-        X_valid_bin = df_ohe[df_ohe["kfold"] == fold][ohe_columns]
+        X_train_bin = df_ohe[df_ohe["kfold"] != fold][ohe_columns].reset_index(drop=True)
+        X_valid_bin = df_ohe[df_ohe["kfold"] == fold][ohe_columns].reset_index(drop=True)
 
-        # Train and validation numeric features with mean target encoding
-        # List of features after mean target encoding
-        numeric_encoded_features = [col + "_enc" for col in df if col not in
-                                    categorical_features + ["kfold", "building_id", "damage_grade"]]
+        # Train and validation target encoded feature interaction
+        selected_feature_interaction = ['geo_level_2_id_land_surface_condition',
+                                        'geo_level_2_id_count_floors_pre_eq',
+                                        'geo_level_3_id_has_superstructure_cement_mortar_brick',
+                                        'geo_level_3_id_position',
+                                        'geo_level_2_id_geo_level_1_id',
+                                        'geo_level_2_id_has_superstructure_stone_flag',
+                                        'geo_level_2_id_position',
+                                        'geo_level_3_id_land_surface_condition',
+                                        'geo_level_3_id_has_superstructure_timber',
+                                        'geo_level_3_id_has_secondary_use_industry']
 
-        X_train_num = df_enc[df_enc["kfold"] != fold][numeric_encoded_features]
-        X_valid_num = df_enc[df_enc["kfold"] == fold][numeric_encoded_features]
+        X_train_num = df_feature_inter[df_feature_inter["kfold"] != fold].\
+            drop(["building_id", "kfold", "damage_grade"], axis=1)[selected_feature_interaction]
 
-        # Model
-        clf1 = model_dispatcher.models["decision_tree_reg"]
+        X_valid_num = df_feature_inter[df_feature_inter["kfold"] == fold].\
+            drop(["building_id", "kfold", "damage_grade"], axis=1)[selected_feature_interaction]
+
+        # First Tree based model
+        clf1 = model_dispatcher.models["decision_tree_clf"]
         clf1.fit(X_train_num, y_train)
 
-        X_train = sparse.csr_matrix(np.hstack((X_train_bin, clf1.predict(X_train_num).reshape(-1, 1))))
-        X_valid = sparse.csr_matrix(np.hstack((X_valid_bin, clf1.predict(X_valid_num).reshape(-1, 1))))
+        # Predictors for final prediction with stacked tree based model results
+        X_train = sparse.csr_matrix(np.hstack((X_train_bin, clf1.predict_proba(X_train_num))))
+        X_valid = sparse.csr_matrix(np.hstack((X_valid_bin, clf1.predict_proba(X_valid_num))))
 
+        # Final model for prediction
         clf2 = model_dispatcher.models["logistic_reg"]
         clf2.fit(X_train, y_train)
 
         # Recoding evaluation score
-        train_micro_f1_score.append(metrics.f1_score(clf2.predict(X_train), y_train, average="micro"))
-        valid_micro_f1_score.append(metrics.f1_score(clf2.predict(X_valid), y_valid, average="micro"))
+        train_micro_f1_score.append(metrics.f1_score(y_train, clf2.predict(X_train), average="micro"))
+        valid_micro_f1_score.append(metrics.f1_score(y_valid, clf2.predict(X_valid), average="micro"))
 
     print(np.mean(train_micro_f1_score), np.mean(valid_micro_f1_score))
 
