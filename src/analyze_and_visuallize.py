@@ -22,25 +22,4 @@ if __name__ == "__main__":
     # Read pickle file from input
     with open("../input/dtc_feature_selection.pickle", "rb") as f:
         data = pickle.load(f)
-        data = list(map(lambda fold_val: list(map(lambda val: val[0], fold_val)), data))
-
-    feature_ind = []
-    for fold_val in data:
-        for ind in fold_val:
-            feature_ind.append(ind)
-
-    feat_inter_df = pd.read_csv("../input/target_encoded_feature_interaction.csv")
-    train_values = pd.read_csv("../input/train_values.csv")
-
-    numeric_columns = ["geo_level_2_id", "geo_level_3_id", "age", "area_percentage", "height_percentage"]
-
-    df = pd.concat((feat_inter_df, train_values[numeric_columns]), axis=1)
-
-    feature_dict = dict((ind, val) for ind, val in enumerate(list(df.columns)))
-
-    feature_names_freq = []
-
-    for feat in feature_ind:
-        feature_names_freq.append(feature_dict[feat])
-
-    run(feature_names_freq)
+    run(data)

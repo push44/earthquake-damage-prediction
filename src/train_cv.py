@@ -17,7 +17,7 @@ def run():
     df = pd.read_csv("../input/train_folds.csv")
 
     # Target encoded feature interaction dataframe
-    df_feature_inter = pd.read_csv("../input/train_target_encoded_feature_interaction.csv")
+    df_feature_inter = pd.read_csv("../input/target_encoded_feature_interaction.csv")
 
     # All features to considered as categorical
     categorical_features = [col for col in df.columns if col not in ["kfold", "building_id",
@@ -51,16 +51,17 @@ def run():
         X_valid_bin = df_ohe[df_ohe["kfold"] == fold][ohe_columns].reset_index(drop=True)
 
         # Train and validation target encoded feature interaction
-        selected_feature_interaction = ['geo_level_2_id_land_surface_condition',
-                                        'geo_level_2_id_count_floors_pre_eq',
-                                        'geo_level_3_id_has_superstructure_cement_mortar_brick',
-                                        'geo_level_3_id_position',
-                                        'geo_level_2_id_geo_level_1_id',
-                                        'geo_level_2_id_has_superstructure_stone_flag',
-                                        'geo_level_2_id_position',
-                                        'geo_level_3_id_land_surface_condition',
-                                        'geo_level_3_id_has_superstructure_timber',
-                                        'geo_level_3_id_has_secondary_use_industry']
+        selected_feature_interaction = ['geo_level_2_id_ground_floor_type',
+                                        'geo_level_3_id_has_superstructure_mud_mortar_stone',
+                                        'geo_level_2_id_roof_type',
+                                        'geo_level_3_id_foundation_type',
+                                        'geo_level_2_id_has_superstructure_mud_mortar_stone',
+                                        'geo_level_2_id_foundation_type',
+                                        'geo_level_3_id_has_superstructure_adobe_mud',
+                                        'geo_level_3_id_has_secondary_use_use_police',
+                                        'geo_level_3_id_has_superstructure_rc_non_engineered',
+                                        'geo_level_2_id_has_superstructure_cement_mortar_brick',
+                                        'geo_level_3_id_ground_floor_type']
 
         X_train_num = df_feature_inter[df_feature_inter["kfold"] != fold].\
             drop(["building_id", "kfold", "damage_grade"], axis=1)[selected_feature_interaction]
