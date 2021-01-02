@@ -53,6 +53,32 @@ According to Wikipwdia The April 2015 Nepal earthquake killed nearly 9,000 peopl
   <li>train_cv.py: This script is used for training k fold model and getting evaluation score on a hold-out-dataset</li>
 </ul>
 
+## Data Description:
+<ul>
+  <li>Integer features: 31</li>
+  <li>Categorical features: 8</li>
+  <li>Binary features: 22</li>
+</ul>
+
+<b>Target distribution</b>:
+![alt_text](/images/target_dist.png)
+
+<br>
+
+<b>Numeric features correlation plot:</b>
+![alt_text](/images/correlation_map.png)
+
+<br>
+
+<b>Categorical feature description:</b>
+![alt_text](/images/categorical_feat.png)
+
+<br>
+
+<b>Binary features:</b>
+![alt_text](/images/cat_feat_target_var.png)
+
+
 ## Evaluation metrics:
 
 <img src="https://render.githubusercontent.com/render/math?math=F_{micro} = \frac{2.P_{micro}.R_{micro}}{P_{micro}+R_{micro}}">
@@ -66,3 +92,11 @@ According to Wikipwdia The April 2015 Nepal earthquake killed nearly 9,000 peopl
 | Random forest (numeric features) + logistic regression (categorical features)   | 0.6656       | 0.6617    | 0.6577      |
 | Random forest (numeric features) + logistic regression (categorical features) + Mean Target encoding   | 0.7022       | 0.7020    | 0.7029      |
 | Random forest (numeric features) + logistic regression (categorical features) + Mean Target encoding + Feature interaction   | 0.7171       | 0.7137    | 0.7152      |
+
+## Conclusion:
+<ul>
+  <li>From the evaluation metric we can say current model is 71.52% accurate on the test data. Hence, local government can make use of the important fetures to make regulatory decisions for the constructions of the building in selected area.</li>
+  <li>In every selected feature interaction one of the three geo level id features exist. In particular geo level id 2 and geo level id 3 are important features. These two features gives granular information about the geological position of a building. Indicating some geological locations are safer than others.</li>
+  <li>Some of the other important features are the foundation types and construction types. Indicating some types are safer to use than the others.</li>
+  <li>Based on these informations, local government can take neccessary actions in the targetted area to prevent larger building damages in case future disasters.</li>
+<ul>
