@@ -53,10 +53,11 @@ According to Wikipwdia The April 2015 Nepal earthquake killed nearly 9,000 peopl
   <li>train_cv.py: This script is used for training k fold model and getting evaluation score on a hold-out-dataset</li>
 </ul>
 
+## Evaluation metrics:
+
+<img src="https://render.githubusercontent.com/render/math?math=F_{micro} = \frac{2.P_{micro}.R_{micro}}{P_{micro}+R_{micro}}">
 
 ## Models:
-
-Evaluation metrics = F1 micro average score
 
 | Model Description                                           | Train score  | CV score  | Test score  |
 |-------------------------------------------------------------|--------------|-----------|-------------|
